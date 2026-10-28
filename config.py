@@ -1,23 +1,41 @@
+
 """
 GrammarlyX Configuration Module
-Loads environment variables and defines application constants, contexts, tones, and defaults.
+Loads Streamlit secrets and local environment variables.
+Defines application constants, contexts, tones, and defaults.
 """
 
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import streamlit as st
 
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent
 
-# Load environment variables from .env file
+# Load environment variables from local .env file
 ENV_PATH = BASE_DIR / ".env"
 load_dotenv(dotenv_path=ENV_PATH)
 
-# OpenAI Settings
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "").strip() or None
+
+def get_setting(name: str, default: str = "") -> str:
+    """Read Streamlit secrets first, then environment variables."""
+    try:
+        value = st.secrets.get(name, None)
+    except Exception:
+        # Streamlit secrets may be unavailable during local development
+        value = None
+
+    if value is None or str(value).strip() == "":
+        value = os.getenv(name, default)
+
+    return str(value).strip()
+
+
+# API settings: Streamlit Cloud Secrets take priority
+OPENAI_API_KEY = get_setting("OPENAI_API_KEY")
+OPENAI_MODEL = get_setting("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_BASE_URL = get_setting("OPENAI_BASE_URL") or None
 
 # Input Limits
 MIN_INPUT_CHARS = 3
@@ -44,7 +62,7 @@ WRITING_TONES = [
     "Persuasive",
 ]
 
-# Context-Specific Guidelines for Prompt Enrichment
+# Context-Specific Guidelines
 CONTEXT_GUIDELINES = {
     "Education": (
         "Focus on clarity, learner-friendly language, and constructive pedagogical feedback. "
@@ -85,7 +103,7 @@ TONE_GUIDELINES = {
     "Persuasive": "Compelling, rhetorically effective, influential, and confidence-inspiring.",
 }
 
-# Curated Sample Texts for Demo Selector
+# Curated Sample Texts
 DEMO_TEXTS = {
     "Education (Grammar & Agreement)": (
         "Students should understands the importance of regular practice because it help them improve. "
@@ -111,11 +129,11 @@ DEMO_TEXTS = {
 
 
 def is_api_configured() -> bool:
-    """Check if a non-placeholder OpenAI API key is set."""
-    key = os.getenv("OPENAI_API_KEY", OPENAI_API_KEY).strip()
+    """Check whether a valid-looking API key is configured."""
+    key = get_setting("OPENAI_API_KEY")
     return bool(key) and not key.startswith("your_") and len(key) > 10
 
 
 def get_configured_model() -> str:
-    """Return the currently configured OpenAI model."""
-    return os.getenv("OPENAI_MODEL", OPENAI_MODEL).strip() or "gpt-4o-mini"
+    """Return the configured model name."""
+    return get_setting("OPENAI_MODEL", "gpt-4o-mini") or "gpt-4o-mini"
