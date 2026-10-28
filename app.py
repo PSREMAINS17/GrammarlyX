@@ -162,17 +162,20 @@ if "analysis_results" not in st.session_state:
 if "input_text" not in st.session_state:
     st.session_state.input_text = ""
 
-if "session_api_key" not in st.session_state:
-    st.session_state.session_api_key = config.OPENAI_API_KEY if not config.OPENAI_API_KEY.startswith("your_") else ""
+
+# API configuration is loaded from config.py / Streamlit Secrets.
+# Do not store or display the secret in the sidebar.
+if "session_api_key" in st.session_state:
+    del st.session_state["session_api_key"]
 
 if "session_provider" not in st.session_state:
-    st.session_state.session_provider = "Custom / Compatible" if getattr(config, "OPENAI_BASE_URL", None) else "OpenAI (Official)"
+    st.session_state.session_provider = "Groq (Free Tier)"
 
 if "session_base_url" not in st.session_state:
-    st.session_state.session_base_url = getattr(config, "OPENAI_BASE_URL", None) or ""
+    st.session_state.session_base_url = config.OPENAI_BASE_URL or ""
 
 if "session_model" not in st.session_state:
-    st.session_state.session_model = getattr(config, "OPENAI_MODEL", "gpt-4o-mini")
+    st.session_state.session_model = config.OPENAI_MODEL
 
 # -----------------------------------------------------------------------------
 # Sidebar: Controls & Settings
@@ -182,52 +185,10 @@ with st.sidebar:
     st.caption("AI-Powered Writing Quality Engine")
     st.markdown("---")
 
-    # API Status & Configuration Expander
-    active_key = st.session_state.session_api_key or config.OPENAI_API_KEY
-    is_ready = bool(active_key and not active_key.startswith("your_") and len(active_key) > 10)
-
-    with st.expander("⚙️ LLM Provider & API Key", expanded=not is_ready):
-        provider = st.selectbox(
-            "AI Provider",
-            options=["OpenAI (Official)", "Groq (Free Tier)", "Custom / OpenRouter"],
-            index=0 if st.session_state.session_provider == "OpenAI (Official)" else 1 if "Groq" in st.session_state.session_provider else 2,
-            key="provider_selector",
-        )
-        st.session_state.session_provider = provider
-
-        if provider == "OpenAI (Official)":
-            st.session_state.session_base_url = ""
-            default_model = "gpt-4o-mini"
-            api_placeholder = "sk-proj-..."
-            st.caption("Requires prepaid billing credits ($5 min) at [OpenAI Billing](https://platform.openai.com/settings/organization/billing/).")
-        elif provider == "Groq (Free Tier)":
-            st.session_state.session_base_url = "https://api.groq.com/openai/v1"
-            default_model = "openai/gpt-oss-120b"
-            api_placeholder = "gsk_..."
-            st.caption("100% Free API key at [console.groq.com](https://console.groq.com/keys) (No card needed).")
-        else:
-            custom_url = st.text_input("Base URL", value=st.session_state.session_base_url or "https://openrouter.ai/api/v1")
-            st.session_state.session_base_url = custom_url.strip()
-            default_model = "meta-llama/llama-3.3-70b-instruct"
-            api_placeholder = "API key..."
-
-        model_name = st.text_input("Model Name", value=st.session_state.session_model or default_model)
-        st.session_state.session_model = model_name.strip()
-
-        user_key_input = st.text_input(
-            "API Key",
-            value=st.session_state.session_api_key,
-            type="password",
-            placeholder=api_placeholder,
-            help="Your key is held strictly in session memory and never stored on disk.",
-        )
-        if user_key_input:
-            st.session_state.session_api_key = user_key_input.strip()
-
-    if is_ready or (st.session_state.session_api_key and len(st.session_state.session_api_key) > 10):
-        st.success(f"🟢 Connected: {st.session_state.session_model}")
+    if config.is_api_configured():
+        st.success(f"🔒 API configured: {config.get_configured_model()}")
     else:
-        st.warning("⚠️ Please provide an API key above.")
+        st.error("API key missing. Configure it in Streamlit Cloud Secrets.")
 
     st.markdown("---")
 
@@ -358,7 +319,7 @@ if analyze_clicked:
         st.warning(error_msg)
     else:
         # 2. Check OpenAI API availability
-        current_api_key = st.session_state.session_api_key or config.OPENAI_API_KEY
+        current_api_key =config.OPENAI_API_KEY
         if not current_api_key or current_api_key.startswith("your_") or len(current_api_key) < 10:
             st.error(
                 "OpenAI API configuration is missing. "
@@ -372,9 +333,9 @@ if analyze_clicked:
                 try:
                     openai_service = OpenAIService(
                         api_key=current_api_key,
-                        model=st.session_state.session_model or config.get_configured_model(),
-                        base_url=st.session_state.session_base_url or getattr(config, "OPENAI_BASE_URL", None),
-                    )
+                        model=config.OPENAI_MODEL,
+                        base_url=config.OPENAI_BASE_URL,
+)
 
                     # Deterministic text statistics
                     stats = analyze_text(sanitized) if check_stats else {}
